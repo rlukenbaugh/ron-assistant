@@ -18,7 +18,8 @@ const text = `# Ron Assistant v${version}
 ## What To Configure Next
 
 - Claude Code and Codex must already be installed and signed in on the target computer.
-- Enable optional Gemini, Hermes or local Ollama connections in Connections when available.
+- Enable optional Gemini or local Ollama connections in Connections when available.
+- Hermes is detected but unavailable in this version because its installed CLI cannot disable all answering tools.
 - Live avatars require the existing Jarvis server and available avatar allowance. No account or plan changes are made.
 
 ## Release Assets
