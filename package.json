@@ -1,0 +1,34 @@
+{
+  "name": "ron-assistant",
+  "productName": "Ron Assistant",
+  "version": "0.1.0",
+  "description": "A personal Windows thinking room: compare assistants, exchange reviews, and read or hear a clear final answer.",
+  "author": "rlukenbaugh",
+  "license": "MIT",
+  "main": "main.cjs",
+  "homepage": "https://github.com/rlukenbaugh/ron-assistant",
+  "repository": { "type": "git", "url": "https://github.com/rlukenbaugh/ron-assistant.git" },
+  "scripts": {
+    "start": "electron .",
+    "build": "node scripts/build.cjs",
+    "lint": "eslint .",
+    "test": "node --test tests/*.test.cjs",
+    "test:e2e": "playwright test",
+    "test:live": "node scripts/live-smoke.cjs",
+    "dist:win": "npm run build && electron-builder --win nsis portable --x64 --publish never",
+    "release:notes": "node scripts/release-notes.cjs"
+  },
+  "dependencies": { "dompurify": "3.4.18", "marked": "18.2.1" },
+  "devDependencies": { "@playwright/test": "1.65.1", "electron": "45.3.4", "electron-builder": "26.18.0", "esbuild": "0.28.2", "eslint": "10.15.0", "@eslint/js": "10.0.1", "globals": "^17.0.0", "sharp": "^0.34.5", "png-to-ico": "^3.0.1" },
+  "build": {
+    "appId": "com.rlukenbaugh.ronassistant",
+    "productName": "Ron Assistant",
+    "directories": { "output": "release" },
+    "files": ["main.cjs", "preload.cjs", "lib/**/*", "dist/**/*", "build/icon.ico", "package.json", "LICENSE"],
+    "asar": true,
+    "win": { "icon": "build/icon.ico", "target": ["nsis", "portable"], "signExecutable": false },
+    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true, "deleteAppDataOnUninstall": false, "artifactName": "Ron-Assistant-Setup-${version}-${arch}.${ext}" },
+    "portable": { "artifactName": "Ron-Assistant-Portable-${version}-${arch}.${ext}" },
+    "publish": { "provider": "github", "owner": "rlukenbaugh", "repo": "ron-assistant" }
+  }
+}

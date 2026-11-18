@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-18",
+  "evidenceId": "ev_ae878ae2aee4fed22cbc82720ea6946f2b89a100c239c328c62e2ffd98770d04",
+  "artifact": "7a8d03de8d6a90ded16cb2cf6346f03e6627489dca72c07d34f73c1185c45890",
+  "scope": {
+    "requested_paths": [
+      "package.json",
+      "backend/shared/osUtils.js",
+      "backend/agents/detect.js",
+      "backend/hermes/workers/ClaudeWorker.js",
+      "backend/shared/memory/ConversationMemory.js",
+      "backend/avatar/avatarSource.js"
+    ],
+    "unselected_files": 1545
+  },
+  "limitations": [
+    "Static analysis of six selected files; not the entire application.",
+    "Earlier live tests verified signed-in Claude/Codex and cloud avatar text delivery.",
+    "No original application code or avatar media is copied into the new app."
+  ]
+}

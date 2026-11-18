@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+release/
+work/
+test-results/
+playwright-report/
+*.log
+.env
+*.pem
+*.pfx
+backups/
