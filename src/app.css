@@ -5,3 +5,12 @@
 :root .listening-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 8px 28px; border-bottom: 1px solid #65756844; font-size: 14px; }
 .listening-bar [aria-pressed="true"] { color: #83cfa2; }
 #listening-status { flex: 1; }
+.project-bar { display:flex; align-items:center; gap:12px; padding:6px 28px; font-size:13px; border-bottom:1px solid var(--line); }
+#project-dialog { width:min(850px,90vw); max-height:85vh; overflow:auto; border:1px solid var(--line); border-radius:16px; background:var(--panel); color:var(--text); padding:24px; }
+#project-dialog::backdrop { background:#0009; }
+#project-dialog header,#project-dialog footer,.project-file { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+#project-dialog p { font-size:14px; line-height:1.5; margin:12px 0; }
+#project-list { max-height:32vh; overflow:auto; margin:18px 0; }
+.project-file { padding:5px 0; font-size:13px; }
+.project-file label { display:flex; gap:8px; overflow-wrap:anywhere; }
+#project-preview { width:100%; margin:8px 0 16px; font:13px Consolas,monospace; background:var(--bg); color:var(--text); padding:12px; }

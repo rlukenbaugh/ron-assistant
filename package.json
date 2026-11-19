@@ -1,7 +1,7 @@
 {
   "name": "ron-assistant",
   "productName": "Ron Assistant",
-  "version": "0.2.0-preview.2",
+  "version": "0.2.0-preview.3",
   "description": "A personal Windows thinking room: compare assistants, exchange reviews, and read or hear a clear final answer.",
   "author": "rlukenbaugh",
   "license": "MIT",

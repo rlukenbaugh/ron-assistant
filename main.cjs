@@ -7,6 +7,8 @@ const providers = require('./lib/providers.cjs');
 const { validateRequest, runQuestion } = require('./lib/engine.cjs');
 const jarvis = require('./lib/jarvis.cjs');
 const { Listening } = require('./lib/listening.cjs');
+const { ProjectFiles } = require('./lib/project-files.cjs');
+const projectFiles = new ProjectFiles();
 if (process.env.RON_ASSISTANT_DATA_DIR) app.setPath('userData', path.resolve(process.env.RON_ASSISTANT_DATA_DIR));
 app.setName('Ron Assistant');
 app.setAppUserModelId('com.rlukenbaugh.ronassistant');
@@ -37,6 +39,9 @@ async function start(request, previous) {
   request = validateRequest(request);
   for (const id of request.ids) if (!catalog.some(p => p.id === id && p.ready)) throw new Error('One selected assistant is not connected. Refresh Connections first.');
   const settings = await store.settings();
+  const snapshot = await projectFiles.snapshot(request.projectIds || []);
+  if (previous?.projectFiles?.length && JSON.stringify(previous.projectFiles) !== JSON.stringify(snapshot.files)) throw new Error('The project files have changed. Start a new question with the current files.');
+  request.projectFiles = snapshot.files;
   const cwd = path.join(app.getPath('userData'), 'work'); await fs.mkdir(cwd, { recursive: true });
   controller = new AbortController(); const signal = controller.signal;
   listening.pause(true);
@@ -49,7 +54,7 @@ async function start(request, previous) {
       if (id === 'codex' && prompt.includes('[fail-codex]')) throw new Error('Test: provider unavailable.');
       return `## ${id === 'codex' ? 'A second perspective' : 'A clear answer'}\n\n17 × 19 = **323**. [Reference](https://example.com/guide)\n\n- A readable point\n- A second point\n\n\`\`\`js\nconst answer = 323;\n\`\`\`\n\n<img src=x onerror="window.pwned=true"><script>window.pwned=true</script>`;
     }
-    return providers.ask(id, prompt, { model: settings.models[id], cwd, signal, timeoutSeconds: settings.timeoutSeconds, catalog });
+    return providers.ask(id, prompt + snapshot.context, { model: settings.models[id], cwd, signal, timeoutSeconds: settings.timeoutSeconds, catalog });
   };
   pending = runQuestion(request, settings, runner, send, signal, previous).then(async run => { await store.saveRun(run); return run; }).catch(error => {
     if (current) send({ ...current, state: 'failed', warnings: [...current.warnings, error.message] });
@@ -81,6 +86,10 @@ app.whenReady().then(async () => {
     return { settings, history: await store.history(), version: app.getVersion(), current, testMode };
   });
   handle('connections', async () => { catalog = await discover(); return catalog; });
+  handle('project:list', () => projectFiles.publicList());
+  handle('project:preview', async id => {
+    const snapshot = await projectFiles.snapshot([id]); return snapshot.documents[0].path + '\n\n' + snapshot.documents[0].content;
+  });
   handle('settings:save', async value => store.saveSettings(value));
   handle('history:list', () => store.history());
   handle('history:load', async id => {
@@ -90,7 +99,7 @@ app.whenReady().then(async () => {
   handle('run:start', start);
   handle('run:retry', async id => {
     if (!current || !current.answers.some(a => a.id === id && ['failed', 'stopped'].includes(a.status))) throw new Error('There is no failed response to retry.');
-    return start({ task: current.task, ids: current.ids, mode: current.mode }, current);
+    return start({ task: current.task, ids: current.ids, mode: current.mode, projectIds: current.projectIds }, current);
   });
   handle('run:stop', () => { controller?.abort(); return { stopping: Boolean(controller) }; });
   handle('listening:available', () => listening.available());

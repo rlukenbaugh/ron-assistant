@@ -7,6 +7,11 @@ const names = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini', hermes: 'Her
 let settings, catalog = [], run = null, busy = false, toastTimer, spokenRun = '';
 let peer = null, audioContext = null, silentTrack = null, oscillator = null, avatarGeneration = 0, avatarLive = false, speechGeneration = 0;
 let listeningEnabled = false, speaking = false, avatarSpeaking = false;
+let projectSelection = [];
+function projectSummary() {
+  $('#project-summary').textContent = projectSelection.length ? `${projectSelection.length} project file(s) selected for your next question` : 'No project files selected for the next question.';
+  $('#project-clear').hidden = !projectSelection.length;
+}
 async function syncListening() {
   if (listeningEnabled) await api.listeningPause(busy || speaking || avatarSpeaking).catch(error => toast(error.message));
 }
@@ -62,6 +67,7 @@ function bodyFor(answer) {
   return '<div class="waiting"><span class="thinking-dot"></span>Thinking through your question…</div>';
 }
 function renderRun() {
+  $('#project-used').textContent = run?.projectFiles?.length ? 'Files shared for this question: ' + run.projectFiles.map(f => f.path).join(' · ') : '';
   if (!run) { $('#results').hidden = true; $('#empty-state').hidden = false; return; }
   $('#results').hidden = false; $('#empty-state').hidden = true;
   const reviewWasOpen = $('#review-details')?.open || false;
@@ -80,8 +86,8 @@ async function submit(task = $('#question').value) {
   if (!task.trim()) { $('#question').focus(); return; }
   if (!ids.length) return toast('Wait for the connection check, then choose a connected assistant.');
   stopWindows(); showView('conversation');
-  try { setBusy(true); await api.start({ task, ids, mode: settings.mode }); $('#question').value = ''; }
-  catch (error) { setBusy(false); toast(error.message); }
+  try { setBusy(true); await api.start({ task, ids, mode: settings.mode, projectIds: projectSelection }); $('#question').value = ''; projectSelection = []; projectSummary(); }
+  catch (error) { setBusy(false); await syncListening(); toast(error.message); }
 }
 async function history() {
   const items = await api.history();
@@ -193,8 +199,28 @@ document.addEventListener('click', async event => {
   const entry = event.target.closest('[data-history]'); if (entry) { try { run = await api.loadHistory(entry.dataset.history); showView('conversation'); renderRun(); } catch (error) { toast(error.message); } return; }
   if (event.target.closest('[data-speak]')) speakFinal();
   if (event.target.closest('#copy-discussion') || event.target.closest('#copy-discussion-markdown')) { await api.copy(event.target.closest('#copy-discussion-markdown') ? discussion() : plain(discussion())); toast('Complete discussion copied.'); }
-  if (event.target.closest('#regenerate') && run && !busy) submit(run.task);
+  if (event.target.closest('#regenerate') && run && !busy) { projectSelection = run.projectIds || []; projectSummary(); submit(run.task); }
 });
+$('#project-open').addEventListener('click', async () => {
+  if (busy) return toast('Wait until the current question finishes.');
+  try {
+    const catalog = await api.projectFiles();
+    $('#project-list').innerHTML = catalog.roots.map(root => `<section><h3>${esc(root.name)}</h3><p>${esc(root.path)}${root.available ? '' : ' — unavailable'}</p>${catalog.files.filter(f => f.root === root.id).map(file => `<div class="project-file"><label><input type="checkbox" data-project-id="${esc(file.id)}" ${projectSelection.includes(file.id) ? 'checked' : ''} ${!file.selectable ? 'disabled' : ''}>${esc(file.relative)}${file.selectable ? '' : ' (too large)'}</label>${file.selectable ? `<button class="text-button" data-project-preview="${esc(file.id)}">Preview</button>` : ''}</div>`).join('')}</section>`).join('');
+    $('#project-selection-status').textContent = 'Contents are only sent after you ask a question.';
+    $('#project-preview').value = ''; $('#project-dialog').showModal();
+  } catch (error) { toast(error.message); }
+});
+$('#project-close').addEventListener('click', () => $('#project-dialog').close());
+$('#project-list').addEventListener('click', async event => {
+  const button = event.target.closest('[data-project-preview]');
+  if (button) { try { $('#project-preview').value = await api.previewProjectFile(button.dataset.projectPreview); } catch (error) { toast(error.message); } }
+});
+$('#project-use').addEventListener('click', () => {
+  const selected = [...document.querySelectorAll('[data-project-id]:checked')].map(e => e.dataset.projectId);
+  if (selected.length > 8) { $('#project-selection-status').textContent = 'Select at most eight files.'; return; }
+  projectSelection = selected; projectSummary(); $('#project-dialog').close();
+});
+$('#project-clear').addEventListener('click', () => { projectSelection = []; projectSummary(); });
 document.addEventListener('change', async event => {
   if (event.target.dataset.enable) {
     const id = event.target.dataset.enable;

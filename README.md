@@ -70,6 +70,8 @@ Security boundaries: isolated/sandboxed renderer, restrictive Content Security P
 
 ## Hands-free preview
 
+The **Project files** button provides read-only snapshots from `C:\dev\ron-assistant` and `E:\Program Files\Ron Assistant`, including text inside the installed app archive. Preview and select files, choose **Use selected files**, then ask. Selected content goes to every enabled assistant for that question and its reviews. The selection clears afterward; paths supplied for the current question remain visible. This does not grant autonomous filesystem tools or editing access. See `docs/project-read-access.md` for limits and verification.
+
 The 0.2.0 preview adds optional local wake-phrase detection, using the installed Windows en-US desktop recognizer and default microphone. It requires Windows microphone access for desktop apps and compatible PowerShell script policy; it does not change those settings. No audio recording is saved. Listening works while minimized, pauses during model requests and Windows narration, and stops when switched off or the application closes. It does not run after closing or install a background service. A low-confidence question is rejected rather than submitted. Recognition accuracy needs a trial with the user's voice. A typed draft is preserved instead of overwritten by a voice question.
 
 The avatar does not expose a reliable narration-finished event. After avatar narration, listening therefore stays paused. **Resume listening** disconnects the avatar and resumes microphone recognition. Fully automatic avatar turn-taking is not implemented in this preview.

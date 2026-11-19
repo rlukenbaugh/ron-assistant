@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('ron', {
   bootstrap: () => ipcRenderer.invoke('bootstrap'),
   connections: () => ipcRenderer.invoke('connections'),
+  projectFiles: () => ipcRenderer.invoke('project:list'),
+  previewProjectFile: id => ipcRenderer.invoke('project:preview', id),
   saveSettings: value => ipcRenderer.invoke('settings:save', value),
   history: () => ipcRenderer.invoke('history:list'),
   loadHistory: id => ipcRenderer.invoke('history:load', id),

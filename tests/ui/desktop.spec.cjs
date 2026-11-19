@@ -85,6 +85,33 @@ test('wake input submits once, keeps typed drafts and is off after restarting', 
   await expect(page.locator('#listening-toggle')).toHaveAttribute('aria-pressed', 'false');
 });
 
+test('project panel previews source and installed archive with explicit sharing', async () => {
+  test.skip(!await fs.access('C:\\dev\\ron-assistant\\package.json').then(() => true).catch(() => false), 'The granted local project folders are specific to Ron’s computer.');
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ron-project-ui-'));
+  const app = await launch(dir); const page = await app.firstWindow();
+  await expect(page.locator('#ask')).toBeEnabled();
+  await page.locator('#project-open').click();
+  await expect(page.locator('#project-list')).toContainText('C:\\dev\\ron-assistant');
+  await expect(page.locator('#project-list')).toContainText('E:\\Program Files\\Ron Assistant');
+  await page.locator('[data-project-preview="source:package.json"]').click();
+  await expect(page.locator('#project-preview')).toHaveValue(/ron-assistant/);
+  const archive = page.locator('[data-project-preview="installed:resources/app.asar/main.cjs"]');
+  await expect(archive).toBeVisible();
+  await archive.click();
+  await expect(page.locator('#project-preview')).toHaveValue(/BrowserWindow/);
+  await page.locator('[data-project-id="source:package.json"]').check();
+  await page.locator('#project-use').click();
+  await expect(page.locator('#project-summary')).toContainText('1 project');
+  await page.locator('#question').fill('Review the attached package file'); await page.locator('#ask').click();
+  await expect(page.locator('#final-answer')).toBeVisible();
+  const run = await page.evaluate(async () => (await window.ron.bootstrap()).current);
+  expect(run.projectIds).toEqual(['source:package.json']);
+  expect(run.projectFiles[0].path).toBe('C:\\dev\\ron-assistant\\package.json');
+  await expect(page.evaluate(() => window.ron.previewProjectFile('source:../../Users/Luken/.env'))).rejects.toThrow();
+  await expect(page.locator('#project-summary')).toContainText('No project');
+  await expect(page.locator('#project-used')).toContainText('package.json');
+});
+
 test('packaged application launches with isolated settings and its compiled interface', async () => {
   test.skip(!process.env.RON_PACKAGED_TEST, 'Run after Windows packaging.');
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ron-assistant-packaged-'));

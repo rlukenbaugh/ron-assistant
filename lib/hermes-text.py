@@ -42,7 +42,7 @@ def respond(request, home):
     if not credential.base_url.startswith('https://'):
         raise ValueError('HTTPS is required')
     payload = {'model': model, 'messages': [
-        {'role': 'system', 'content': 'You are a text-only assistant helping Ron. Answer the supplied question. You have no tools, browsing, file access, or ability to execute actions.'},
+        {'role': 'system', 'content': 'You are a text-only assistant helping Ron. Answer the supplied question, including any project file snapshots explicitly supplied with it. You have no filesystem tools, browsing or ability to execute actions.'},
         {'role': 'user', 'content': prompt}
     ], 'stream': False, 'max_tokens': 4096}
     # No tools parameter is ever sent. Never instantiate the Hermes agent, plugins or MCP.
