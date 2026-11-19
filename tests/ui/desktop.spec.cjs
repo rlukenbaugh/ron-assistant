@@ -56,6 +56,31 @@ test('reading, reviews, safe links, clipboard, memory restart, failure and cance
   await page.screenshot({ path: path.join(root, 'work', 'ui-test-light.png'), fullPage: true });
   await app.close();
 });
+test('wake input submits once, keeps typed drafts and is off after restarting', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ron-voice-ui-'));
+  let app = await launch(dir); let page = await app.firstWindow();
+  await expect(page.locator('#ask')).toBeEnabled();
+  await expect(page.locator('#listening-toggle')).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('#listening-toggle').click();
+  await expect(page.locator('#listening-toggle')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#question').fill('My typed draft');
+  const transcript = async text => app.evaluate(({ BrowserWindow }, value) => BrowserWindow.getAllWindows()[0].webContents.send('listening:update', { state: 'transcript', text: value }), text);
+  await transcript('A voice question');
+  await expect(page.locator('#question')).toHaveValue('My typed draft');
+  await expect(page.locator('#toast')).toContainText('draft was kept');
+  await page.locator('#question').fill('');
+  await transcript('Explain 17 times 19');
+  await expect(page.locator('#heard-question')).toContainText('Explain 17 times 19');
+  await expect(page.locator('#final-answer')).toContainText('323');
+  await page.locator('#listening-toggle').click();
+  await expect(page.locator('#listening-toggle')).toHaveAttribute('aria-pressed', 'false');
+  await transcript('Do not send this after the microphone is off');
+  await expect(page.locator('#heard-question')).not.toContainText('Do not send');
+  await app.close();
+  app = await launch(dir); page = await app.firstWindow();
+  await expect(page.locator('#listening-toggle')).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('packaged application launches with isolated settings and its compiled interface', async () => {
   test.skip(!process.env.RON_PACKAGED_TEST, 'Run after Windows packaging.');
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ron-assistant-packaged-'));
@@ -63,6 +88,8 @@ test('packaged application launches with isolated settings and its compiled inte
   page.on('pageerror', error => console.error('Packaged renderer error:', error.message));
   await expect(page.locator('h1')).toHaveText('Conversation');
   expect(await page.evaluate(async () => (await window.ron.bootstrap()).testMode)).toBe(false);
+  expect(typeof await page.evaluate(() => window.ron.listeningAvailable())).toBe('boolean');
+  await expect(page.locator('#listening-toggle')).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('#instructions')).toHaveValue(/My name is Ron/);
   if (process.env.RON_LIVE_DESKTOP_TEST === '1') {
     test.setTimeout(240000);

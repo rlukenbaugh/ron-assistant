@@ -11,7 +11,7 @@ Install the Windows Setup executable from Releases, or run the Portable executab
 - **Memory & settings:** permanent saved instructions, theme, 16–26 px answer text, final-answer preference, time limits, speech and optional history.
 - **Copy / Markdown:** copy any answer, the final answer, or the full discussion. Text is selectable; normal copy/paste shortcuts work. Web links open in the default browser. Models' links are not automatically verified.
 - **Stop / Retry / Regenerate:** cancel current requests, retry a failed independent response while retaining successful answers, or start a fresh exchange.
-- **Voice & avatar:** free Windows speech for the final answer, or an optional live avatar through the existing local Jarvis server. The new app sends no microphone or camera input. Windows dictation can be used in the question box.
+- **Voice & avatar:** Windows speech for the final answer, or an optional live avatar through the existing local Jarvis server. Optional **Enable Hey JARVIS** uses local Windows English speech recognition. Say the wake phrase, pause, then ask the question. Microphone audio stays local; recognized questions are sent to enabled assistants. Listening starts off each time the app opens.
 
 History saving starts **off**. When enabled, the last 50 exchanges are stored locally. Turning it off stops new saves without deleting old conversations. Saved instructions persist independently of history. Settings and optional history live in `%APPDATA%\Ron Assistant`; the original Jarvis profile and settings are not changed. The portable build uses the same user profile so its settings carry over to the installed app.
 
@@ -22,7 +22,7 @@ The app starts restricted, text-only CLI sessions using the current user's saved
 - Claude Code: `%USERPROFILE%\.local\bin\claude.exe`; safe/restricted session, no built-in tools or inherited MCP connections.
 - Codex: native Windows executable installed by the global `@openai/codex` npm package; read-only mode, command execution and web search disabled, no inherited MCP connections.
 - Gemini: compatible text models discovered using the existing Gemini key in `%LOCALAPPDATA%\JarvisServer\data\.env`. The key stays in the main process and is sent only to Google's API. API quota is separate from CLI subscriptions.
-- Hermes: installation and configured model are detected, but it is shown as unavailable. Inspection found that an empty `--toolsets` argument re-enables defaults rather than disabling tools. This release does not grant those extra permissions to answering sessions.
+- Hermes: a dedicated text connector uses the installed Hermes runtime and saved Nous sign-in with its configured model. It uses the upstream credential adapter, without starting an HTTP proxy or loading the Hermes agent, plugins, tools, private memories or chats. Only the Nous provider is supported in this preview. If unavailable, sign in through Hermes (`hermes auth add nous`) and refresh Connections. A completed live Hermes answer remains unverified until a usable sign-in is available.
 - Ollama: installed models discovered at loopback port 11434; requests stay local.
 
 Antigravity was inspected. Its installed CLI supports plan/sandbox modes but does not expose the same explicit all-tools-off boundary as the primary adapters, so it is not offered as an unrestricted answering agent. Gemini text is available through the existing API key instead. The app does not install CLIs, sign into accounts, copy private settings, or synchronize existing chats. If a CLI lives in a different installation location, its adapter must be extended.
@@ -45,6 +45,7 @@ node node_modules/electron/install.js
 npm run build
 npm run lint
 npm test
+npm run test:hermes
 npm run test:e2e
 npm run test:live
 npm run dist:win
@@ -66,3 +67,9 @@ Releases use semantic tags matching `package.json`. The Windows workflow support
 REA-MCP statically examined six selected files from the installed Jarvis 1.1.60 application, including agent detection/execution, work-directory handling, memory writing and avatar source selection. The evidence identifier and coverage are in `docs/inspection.json`. This was a bounded analysis, not a complete decompilation of every dependency. Earlier live tests established the signed-in Claude/Codex flow and cloud-avatar text delivery. The new app is independently implemented; it does not redistribute Jarvis code, branding or avatar media.
 
 Security boundaries: isolated/sandboxed renderer, restrictive Content Security Policy, validated IPC senders, allowlisted IPC operations, sanitized Markdown without remote images or executable HTML, blocked in-app navigation, and HTTP(S)-only external links. The app never disables Windows security protections.
+
+## Hands-free preview
+
+The 0.2.0 preview adds optional local wake-phrase detection, using the installed Windows en-US desktop recognizer and default microphone. It requires Windows microphone access for desktop apps and compatible PowerShell script policy; it does not change those settings. No audio recording is saved. Listening works while minimized, pauses during model requests and Windows narration, and stops when switched off or the application closes. It does not run after closing or install a background service. A low-confidence question is rejected rather than submitted. Recognition accuracy needs a trial with the user's voice. A typed draft is preserved instead of overwritten by a voice question.
+
+The avatar does not expose a reliable narration-finished event. After avatar narration, listening therefore stays paused. **Resume listening** disconnects the avatar and resumes microphone recognition. Fully automatic avatar turn-taking is not implemented in this preview.

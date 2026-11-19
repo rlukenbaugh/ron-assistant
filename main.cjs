@@ -6,6 +6,7 @@ const { Store, DEFAULTS } = require('./lib/store.cjs');
 const providers = require('./lib/providers.cjs');
 const { validateRequest, runQuestion } = require('./lib/engine.cjs');
 const jarvis = require('./lib/jarvis.cjs');
+const { Listening } = require('./lib/listening.cjs');
 if (process.env.RON_ASSISTANT_DATA_DIR) app.setPath('userData', path.resolve(process.env.RON_ASSISTANT_DATA_DIR));
 app.setName('Ron Assistant');
 app.setAppUserModelId('com.rlukenbaugh.ronassistant');
@@ -13,6 +14,14 @@ const store = new Store(app.getPath('userData'));
 const testMode = !app.isPackaged && process.env.RON_ASSISTANT_TEST === '1';
 let window, catalog = [], current = null, controller = null;
 let pending = Promise.resolve();
+function notifyListening(value) { if (window && !window.isDestroyed()) window.webContents.send('listening:update', value); }
+const listening = testMode ? {
+  enabled: false,
+  available: async () => true,
+  setEnabled(value) { this.enabled = value; notifyListening({ state: value ? 'wake' : 'off', text: value ? 'Test fixture: waiting for wake phrase.' : 'Microphone off.' }); },
+  pause(value) { if (this.enabled) notifyListening({ state: value ? 'paused' : 'wake', text: value ? 'Listening paused while answering or speaking.' : 'Test fixture: waiting for wake phrase.' }); },
+  close: () => {}
+} : new Listening(notifyListening);
 const pageURL = pathToFileURL(path.join(__dirname, 'dist', 'index.html')).href;
 function trusted(event) {
   if (event.sender.id !== window?.webContents.id || event.senderFrame?.url !== pageURL) throw new Error('This request did not come from the application.');
@@ -30,6 +39,7 @@ async function start(request, previous) {
   const settings = await store.settings();
   const cwd = path.join(app.getPath('userData'), 'work'); await fs.mkdir(cwd, { recursive: true });
   controller = new AbortController(); const signal = controller.signal;
+  listening.pause(true);
   const runner = async (id, prompt) => {
     if (testMode) {
       await new Promise((resolve, reject) => {
@@ -83,6 +93,16 @@ app.whenReady().then(async () => {
     return start({ task: current.task, ids: current.ids, mode: current.mode }, current);
   });
   handle('run:stop', () => { controller?.abort(); return { stopping: Boolean(controller) }; });
+  handle('listening:available', () => listening.available());
+  handle('listening:enable', value => {
+    if (typeof value !== 'boolean') throw new Error('Invalid microphone setting.');
+    if (value && controller) throw new Error('Wait until the answer finishes before enabling listening.');
+    listening.setEnabled(value); return true;
+  });
+  handle('listening:pause', value => {
+    if (typeof value !== 'boolean') throw new Error('Invalid listening state.');
+    listening.pause(Boolean(controller) || value); return true;
+  });
   handle('clipboard:write', text => { if (typeof text !== 'string' || text.length > 1000000) throw new Error('Text is too large to copy.'); clipboard.writeText(text); return true; });
   handle('clipboard:read', () => clipboard.readText().slice(0, 20000));
   handle('link:open', async value => { const url = safeURL(value); if (!testMode) await shell.openExternal(url); return { opened: true, url }; });
@@ -103,8 +123,8 @@ app.whenReady().then(async () => {
   handle('avatar:leave', () => jarvis.request('avatar/queue', null, 'DELETE').catch(() => ({})));
   window.once('ready-to-show', () => window.show());
   await window.loadFile(path.join(__dirname, 'dist', 'index.html'));
-  window.on('closed', () => { controller?.abort(); });
+  window.on('closed', () => { controller?.abort(); listening.close(); });
 }).catch(error => { dialog.showErrorBox('Ron Assistant could not start', error.message); app.quit(); });
 app.on('window-all-closed', () => { controller?.abort(); app.quit(); });
-app.on('before-quit', () => { controller?.abort(); });
+app.on('before-quit', () => { controller?.abort(); listening.close(); });
 module.exports = { safeURL, pending, DEFAULTS };

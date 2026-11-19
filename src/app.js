@@ -6,6 +6,10 @@ const $ = selector => document.querySelector(selector);
 const names = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini', hermes: 'Hermes', ollama: 'Local model' };
 let settings, catalog = [], run = null, busy = false, toastTimer, spokenRun = '';
 let peer = null, audioContext = null, silentTrack = null, oscillator = null, avatarGeneration = 0, avatarLive = false, speechGeneration = 0;
+let listeningEnabled = false, speaking = false, avatarSpeaking = false;
+async function syncListening() {
+  if (listeningEnabled) await api.listeningPause(busy || speaking || avatarSpeaking).catch(error => toast(error.message));
+}
 const esc = text => String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function markdown(text) {
   return DOMPurify.sanitize(marked.parse(text || '', { gfm: true, breaks: false }), {
@@ -49,6 +53,7 @@ function setBusy(value) {
   busy = value; $('#stop').hidden = !value; $('#ask').hidden = value;
   document.querySelectorAll('[data-mode]').forEach(el => { el.disabled = value; });
   $('#new').disabled = value; $('#refresh').disabled = value; renderConnections();
+  if (value) syncListening();
 }
 function copyButtons(type, id = '') { return `<button class="copy-button" data-copy="${type}" data-id="${id}" data-format="plain" title="Copy as plain text">Copy</button><button class="copy-button" data-copy="${type}" data-id="${id}" data-format="markdown" title="Copy Markdown source">Markdown</button>`; }
 function bodyFor(answer) {
@@ -89,17 +94,19 @@ function fillSettings() {
 function discussion() {
   return `# ${run.task}\n\n${run.final ? `## Final answer (${names[run.finalProvider]})\n\n${run.final}\n\n` : ''}${run.answers.map(a => `## ${names[a.id]} — independent answer\n\n${a.text || a.error || a.status}`).join('\n\n')}${run.reviews.length ? '\n\n# Review discussion\n\n' + run.reviews.map(r => `## ${names[r.id]}\n\n${r.text || r.error || r.status}`).join('\n\n') : ''}${run.warnings.length ? '\n\n## Limitations\n\n' + run.warnings.join('\n\n') : ''}`;
 }
-function stopWindows() { speechGeneration++; window.speechSynthesis.cancel(); }
-function windowsSpeak(text) {
-  stopWindows(); const generation = speechGeneration;
+function stopWindows() { speechGeneration++; window.speechSynthesis.cancel(); speaking = false; }
+async function windowsSpeak(text) {
+  stopWindows(); speaking = true; const generation = speechGeneration; await syncListening();
+  if (generation !== speechGeneration) return;
   const value = plain(text).slice(0, 16000), chunks = [];
   for (let i = 0; i < value.length; i += 240) chunks.push(value.slice(i, i + 240));
   const voice = speechSynthesis.getVoices().find(v => v.voiceURI === $('#windows-voice').value);
   function next() {
-    if (generation !== speechGeneration || !chunks.length) return;
+    if (generation !== speechGeneration) return;
+    if (!chunks.length) { speaking = false; syncListening(); return; }
     const utterance = new SpeechSynthesisUtterance(chunks.shift());
     if (voice) utterance.voice = voice;
-    utterance.rate = 1; utterance.onend = next; utterance.onerror = () => toast('Windows voice could not finish. Your answer is still available to read.');
+    utterance.rate = 1; utterance.onend = next; utterance.onerror = () => { if (generation !== speechGeneration) return; speaking = false; syncListening(); toast('Windows voice could not finish. Your answer is still available to read.'); };
     speechSynthesis.speak(utterance);
   }
   next();
@@ -108,7 +115,7 @@ async function speakFinal(target = settings.speechTarget) {
   if (!run?.final) return toast('A final answer will be available after a joint review.');
   if (target === 'windows') return windowsSpeak(run.final);
   if (!avatarLive) { $('#voice-panel').hidden = false; return toast('Connect your avatar first, then send the final answer.'); }
-  try { stopWindows(); $('#avatar-audio').muted = false; await $('#avatar-audio').play().catch(() => {}); await api.avatarSpeak(plain(run.final)); $('#avatar-status').textContent = 'Final answer sent. The avatar may paraphrase it as it speaks.'; }
+  try { stopWindows(); avatarSpeaking = true; await syncListening(); $('#avatar-audio').muted = false; await $('#avatar-audio').play().catch(() => {}); await api.avatarSpeak(plain(run.final)); $('#avatar-status').textContent = 'Final answer sent. Listening stays paused until you click Resume listening or disconnect the avatar.'; }
   catch (error) { toast(error.message); }
 }
 function loadVoices() {
@@ -119,7 +126,7 @@ function loadVoices() {
 }
 function avatarStatus(text) { $('#avatar-status').textContent = text; }
 async function disconnectAvatar() {
-  avatarGeneration++; avatarLive = false;
+  avatarGeneration++; avatarLive = false; avatarSpeaking = false;
   if (peer) { peer.onconnectionstatechange = null; peer.close(); peer = null; }
   silentTrack?.stop(); silentTrack = null; oscillator?.stop(); oscillator = null;
   if (audioContext) { await audioContext.close().catch(() => {}); audioContext = null; }
@@ -127,6 +134,7 @@ async function disconnectAvatar() {
   $('#connect-avatar').disabled = false; $('#disconnect-avatar').hidden = true; $('#mute-avatar').hidden = true;
   avatarStatus('Disconnected. Your printed answers are still available.');
   await api.avatarLeave().catch(() => {});
+  syncListening();
 }
 async function connectAvatar() {
   await disconnectAvatar();
@@ -204,7 +212,7 @@ $('#question-form').addEventListener('submit', event => { event.preventDefault()
 $('#question').addEventListener('keydown', event => { if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); submit(); } });
 $('#paste').addEventListener('click', async () => { const value = await api.paste(); const box = $('#question'); box.setRangeText(value, box.selectionStart, box.selectionEnd, 'end'); box.value = box.value.slice(0, 20000); box.focus(); });
 $('#stop').addEventListener('click', async () => { status('Stopping your assistants…'); await api.stop(); });
-$('#new').addEventListener('click', () => { if (busy) return; stopWindows(); run = null; showView('conversation'); renderRun(); status('Ready when you are.'); $('#question').value = ''; $('#question').focus(); });
+$('#new').addEventListener('click', () => { if (busy) return; stopWindows(); syncListening(); run = null; showView('conversation'); renderRun(); status('Ready when you are.'); $('#question').value = ''; $('#question').focus(); });
 $('#refresh').addEventListener('click', checkConnections);
 $('#font-size').addEventListener('input', event => { $('#font-size-label').textContent = `${event.target.value} px`; });
 $('#settings-form').addEventListener('submit', async event => {
@@ -218,7 +226,7 @@ $('#voice-toggle').addEventListener('click', () => { $('#voice-panel').hidden = 
 $('#voice-close').addEventListener('click', () => { $('#voice-panel').hidden = true; });
 $('#read-final').addEventListener('click', () => speakFinal('windows'));
 $('#windows-voice').addEventListener('change', async event => { settings = await api.saveSettings({ ...settings, windowsVoice: event.target.value }); });
-$('#stop-speaking').addEventListener('click', () => { stopWindows(); if (peer) disconnectAvatar(); toast('Speech stopped.'); });
+$('#stop-speaking').addEventListener('click', () => { stopWindows(); if (peer) disconnectAvatar(); else syncListening(); toast('Speech stopped.'); });
 $('#connect-avatar').addEventListener('click', connectAvatar);
 $('#disconnect-avatar').addEventListener('click', disconnectAvatar);
 $('#speak-avatar').addEventListener('click', () => speakFinal('avatar'));
@@ -229,7 +237,39 @@ window.addEventListener('beforeunload', () => { stopWindows(); peer?.close(); si
 api.onRun(value => { run = value; renderRun(); });
 api.onIdle(async () => {
   setBusy(false); renderRun(); await history();
-  if (settings.autoSpeak && run?.state === 'done' && run.final && spokenRun !== run.id + run.final) { spokenRun = run.id + run.final; speakFinal(); }
+  if (settings.autoSpeak && run?.state === 'done' && run.final && spokenRun !== run.id + run.final) { spokenRun = run.id + run.final; await speakFinal(); }
+  else syncListening();
+});
+$('#listening-toggle').addEventListener('click', async () => {
+  try {
+    if (!listeningEnabled && !await api.listeningAvailable()) return toast('Windows English speech recognition is unavailable. Add English (United States) speech in Windows Settings.');
+    const value = !listeningEnabled;
+    await api.listeningEnable(value); listeningEnabled = value;
+    $('#listening-toggle').textContent = value ? 'Turn microphone off' : 'Enable Hey JARVIS';
+    $('#listening-toggle').setAttribute('aria-pressed', String(value));
+    if (value) { speaking = speechSynthesis.speaking; await syncListening(); }
+  } catch (error) { toast(error.message); }
+});
+$('#listening-resume').addEventListener('click', async () => {
+  if (busy) return toast('Your assistants are still answering.');
+  if (avatarSpeaking) await disconnectAvatar();
+  stopWindows(); await syncListening();
+});
+api.onListening(value => {
+  $('#listening-status').textContent = value.text;
+  $('#listening-resume').hidden = value.state !== 'paused';
+  if (value.state === 'off' || value.state === 'error') {
+    listeningEnabled = false; $('#listening-toggle').textContent = 'Enable Hey JARVIS'; $('#listening-toggle').setAttribute('aria-pressed', 'false');
+  }
+  if (value.state === 'question') toast('Listening—ask your question now.');
+  if (value.state === 'transcript') {
+    if (!listeningEnabled) return;
+    $('#heard-question').textContent = `Heard: ${value.text}`;
+    $('#listening-resume').hidden = false;
+    if ($('#question').value.trim()) return toast('Your typed draft was kept. The voice question was not sent.');
+    $('#question').value = value.text;
+    if (!busy && !speaking && !avatarSpeaking) submit(value.text);
+  }
 });
 async function init() {
   try {

@@ -10,3 +10,5 @@ playwright-report/
 *.pem
 *.pfx
 backups/
+__pycache__/
+*.pyc

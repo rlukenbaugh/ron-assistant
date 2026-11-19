@@ -19,7 +19,9 @@ const text = `# Ron Assistant v${version}
 
 - Claude Code and Codex must already be installed and signed in on the target computer.
 - Enable optional Gemini or local Ollama connections in Connections when available.
-- Hermes is detected but unavailable in this version because its installed CLI cannot disable all answering tools.
+- Hermes text connection uses its existing Nous sign-in and model. Sign in inside Hermes and refresh Connections. Hermes tools and private memories are not loaded.
+- Optional local Hey JARVIS wake-phrase input starts off. Recognition accuracy needs a microphone trial; listening pauses during responses and speech.
+- Avatar narration requires Resume listening afterward; that disconnects the avatar to prevent feedback.
 - Live avatars require the existing Jarvis server and available avatar allowance. No account or plan changes are made.
 
 ## Release Assets
