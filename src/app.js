@@ -241,14 +241,18 @@ api.onIdle(async () => {
   else syncListening();
 });
 $('#listening-toggle').addEventListener('click', async () => {
+  const button = $('#listening-toggle');
+  if (button.disabled) return;
+  button.disabled = true;
   try {
-    if (!listeningEnabled && !await api.listeningAvailable()) return toast('Windows English speech recognition is unavailable. Add English (United States) speech in Windows Settings.');
     const value = !listeningEnabled;
+    if (value) $('#listening-status').textContent = 'Starting local speech recognition…';
     await api.listeningEnable(value); listeningEnabled = value;
     $('#listening-toggle').textContent = value ? 'Turn microphone off' : 'Enable Hey JARVIS';
     $('#listening-toggle').setAttribute('aria-pressed', String(value));
     if (value) { speaking = speechSynthesis.speaking; await syncListening(); }
   } catch (error) { toast(error.message); }
+  finally { button.disabled = false; }
 });
 $('#listening-resume').addEventListener('click', async () => {
   if (busy) return toast('Your assistants are still answering.');

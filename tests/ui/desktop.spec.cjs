@@ -60,6 +60,10 @@ test('wake input submits once, keeps typed drafts and is off after restarting', 
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ron-voice-ui-'));
   let app = await launch(dir); let page = await app.firstWindow();
   await expect(page.locator('#ask')).toBeEnabled();
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('listening:available');
+    ipcMain.handle('listening:available', () => { throw new Error('Microphone enable must not launch a separate probe.'); });
+  });
   await expect(page.locator('#listening-toggle')).toHaveAttribute('aria-pressed', 'false');
   await page.locator('#listening-toggle').click();
   await expect(page.locator('#listening-toggle')).toHaveAttribute('aria-pressed', 'true');

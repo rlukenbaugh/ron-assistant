@@ -14,10 +14,14 @@ test('microphone is off by default, stops for responses and stays off after the 
   });
   assert.equal(children.length, 0);
   listener.setEnabled(true); assert.equal(children.length, 1);
+  listener.pause(false); listener.pause(false); listener.setEnabled(true);
+  assert.equal(children.length, 1, 'startup synchronization must reuse the live worker');
+  assert.equal(children[0].killed, false);
   children[0].stdout.write('{"state":"transcript","text":"What is seventeen times nineteen?"}\n');
   assert.equal(children[0].killed, true); assert.equal(listener.paused, true);
   assert.equal(events.at(-1).state, 'transcript');
   listener.pause(false); assert.equal(children.length, 2);
+  listener.pause(false); assert.equal(children.length, 2, 'repeated resume must not restart recognition');
   listener.pause(true); assert.equal(children[1].killed, true);
   listener.setEnabled(false); listener.pause(false);
   assert.equal(children.length, 2); assert.equal(listener.enabled, false);
